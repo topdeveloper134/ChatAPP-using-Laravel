@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalkWave - Real-Time Chat</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* Authentication Modal */
+        .auth-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .auth-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 400px;
+            max-width: 90vw;
+        }
+
+        .auth-form h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .auth-switch {
+            text-align: center;
+            margin-top: 1rem;
+            color: #666;
+        }
+
+        .auth-switch a {
+            color: #667eea;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 0.5rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            background: #34495e;
+            border-bottom: 1px solid #3a4a5c;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .user-status {
+            width: 8px;
+            height: 8px;
+            background: #2ecc71;
+            border-radius: 50%;
+        }
+
+        .sidebar-nav {
+            padding: 1rem 0;
+            border-bottom: 1px solid #3a4a5c;
+        }
+
+        .nav-btn {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: none;
+            border: none;
+            color: white;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .nav-btn:hover, .nav-btn.active {
+            background: #3a4a5c;
+        }
+
+        .rooms-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .room-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #3a4a5c;
+            transition: background 0.3s;
+        }
+
+        .room-item:hover, .room-item.active {
+            background: #3a4a5c;
+        }
+
+        .room-name {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .room-preview {
+            font-size: 0.8rem;
+            color: #bdc3c7;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sidebar-footer {
+            padding: 1rem;
+            border-top: 1px solid #3a4a5c;
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 0.5rem;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #c0392b;
+        }
+
+        /* Main Chat Area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 1rem;
+            background: #ecf0f1;
+            border-bottom: 1px solid #bdc3c7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .online-count {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .message.own {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            max-width: 70%;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .message.own .message-header {
+            flex-direction: row-reverse;
+        }
+
+        .message-author {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #7f8c8d;
+        }
+
+        .message-text {
+            background: white;
+            padding: 0.75rem;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            word-wrap: break-word;
+        }
+
+        .message.own .message-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .typing-indicator {
+            padding: 0.5rem 1rem;
+            font-style: italic;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        /* Message Input */
+        .message-input-container {
+            padding: 1rem;
+            background: white;
+            border-top: 1px solid #bdc3c7;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 25px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .message-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Welcome Screen */
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #7f8c8d;
+        }
+
+        .welcome-screen h2 {
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+
+        /* Room Creation Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 400px;
+            max-width: 90vw;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #7f8c8d;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                order: 2;
+            }
+            
+            .main-content {
+                order: 1;
+                height: 70vh;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication Modal -->
+    <div id="authModal" class="auth-modal">
+        <div class="auth-form">
+            <h2 id="authTitle">Welcome to TalkWave</h2>
+            <div id="errorMessage" class="error-message hidden"></div>
+            
+            <form id="authForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                
+                <button type="submit" class="btn" id="authSubmit">Sign Up</button>
+            </form>
+            
+            <div class="auth-switch">
+                <span id="authSwitchText">Already have an account?</span>
+                <a id="authSwitchLink">Sign In</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div class="container hidden" id="mainApp">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>TalkWave</h1>
+                <div class="user-info">
+                    <div class="user-status"></div>
+                    <span id="currentUsername">User</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-nav">
+                <button class="nav-btn active" onclick="showMyRooms()">My Rooms</button>
+                <button class="nav-btn" onclick="showPublicRooms()">Public Rooms</button>
+                <button class="nav-btn" onclick="showCreateRoom()">Create Room</button>
+            </div>
+            
+            <div class="rooms-list" id="roomsList">
+                <!-- Rooms will be populated here -->
+            </div>
+            
+            <div class="sidebar-footer">
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="chat-header">
+                <div class="chat-title" id="chatTitle">Select a room to start chatting</div>
+                <div class="online-count" id="onlineCount"></div>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer">
+                <div class="welcome-screen">
+                    <h2>Welcome to TalkWave!</h2>
+                    <p>Select a room from the sidebar to start chatting, or create a new room to get started.</p>
+                </div>
+            </div>
+            
+            <div class="message-input-container hidden" id="messageInputContainer">
+                <input type="text" class="message-input" id="messageInput" placeholder="Type your message...">
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+            </div>
+            
+            <div class="typing-indicator hidden" id="typingIndicator"></div>
+        </div>
+    </div>
+
+    <!-- Room Creation Modal -->
+    <div class="modal" id="createRoomModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Room</h3>
+                <button class="close-btn" onclick="closeCreateRoomModal()">&times;</button>
+            </div>
+            
+            <form id="createRoomForm">
+                <div class="form-group">
+                    <label for="roomName">Room Name</label>
+                    <input type="text" id="roomName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="roomDescription">Description (optional)</label>
+                    <input type="text" id="roomDescription">
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isPrivate"> Private Room
+                    </label>
+                </div>
+                
+                <button type="submit" class="btn">Create Room</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
